@@ -9,9 +9,18 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
+
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.SealedObject;
+import javax.crypto.spec.SecretKeySpec;
 
 import com.chatapp.networking.Packet;
 
@@ -28,6 +37,13 @@ public class Server implements Runnable
 
 	private final int MAX_ATTEMPTS = 5;
 	private boolean raw = false;
+
+	// type of currently used cipher
+	// private final String cipher_const =
+	// "RSA/ECB/OAEPWithSHA-256AndMGF1Padding";
+	private final String cipher_const = "AES";
+	// password for encrypting packets
+	private final String encrypt_passwd = "Somerandompasswd"; // 16
 
 	public Server(int port_)
 	{
@@ -57,7 +73,8 @@ public class Server implements Runnable
 			String com = scanner.nextLine();
 			if (!com.startsWith("/"))
 			{
-				// i think it shouldn't be allowed to write anything but comments
+				// i think it shouldn't be allowed to write anything but
+				// comments
 				continue;
 			}
 			com = com.substring(1).trim();
@@ -166,6 +183,7 @@ public class Server implements Runnable
 		console("Here is a list of available commands:");
 		console("=====================================");
 		console("/raw - enables raw mode.");
+		console("/address - prints address of server.");
 		console("/clients - shows all connected clients.");
 		console("/kick [users ID or username] - kicks a user.");
 		console("/help - shows this help message.");
@@ -184,7 +202,8 @@ public class Server implements Runnable
 					sendToAll(ping);
 					try
 					{
-						Thread.sleep(2000); // sleep to wait for actual response(it might be slow)
+						Thread.sleep(2000); // sleep to wait for actual
+											// response(it might be slow)
 					} catch (InterruptedException ex)
 					{
 						ex.printStackTrace();
@@ -225,12 +244,14 @@ public class Server implements Runnable
 					byte[] data = new byte[65536];
 					DatagramPacket packet = new DatagramPacket(data, data.length);
 					Packet p = null;
+					SealedObject d_packet = null;
 					try
 					{
 						socket.receive(packet);
 						ByteArrayInputStream in = new ByteArrayInputStream(data);
 						ObjectInputStream is = new ObjectInputStream(in);
-						p = (Packet) is.readObject();
+						d_packet = (SealedObject) is.readObject();
+						p = decrypt(d_packet);
 					} catch (SocketException ex)
 					{
 
@@ -240,9 +261,16 @@ public class Server implements Runnable
 					} catch (ClassNotFoundException ex)
 					{
 						ex.printStackTrace();
+					} catch (NoSuchAlgorithmException e)
+					{
+						e.printStackTrace();
+					} catch (NoSuchPaddingException e)
+					{
+						e.printStackTrace();
 					}
 					process(p, packet.getAddress(), packet.getPort());
-					if (raw) console(p.toString()); // prints messages to syso
+					if (raw)
+						console(p.toString()); // prints messages to syso
 				}
 			}
 		};
@@ -268,16 +296,24 @@ public class Server implements Runnable
 
 				try
 				{
+					SealedObject e_packet = encrypt(p);
 					ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 					ObjectOutputStream os = new ObjectOutputStream(outputStream);
-					os.writeObject(p);
+					os.writeObject(e_packet);
 					byte[] data = outputStream.toByteArray();
 					DatagramPacket packet = new DatagramPacket(data, data.length, address, port);
 					socket.send(packet);
-					if (raw) console(p.toString());
+					if (raw)
+						console(p.toString());
 				} catch (IOException ex)
 				{
 					ex.printStackTrace();
+				} catch (NoSuchAlgorithmException e)
+				{
+					e.printStackTrace();
+				} catch (NoSuchPaddingException e)
+				{
+					e.printStackTrace();
 				}
 			}
 		};
@@ -298,6 +334,7 @@ public class Server implements Runnable
 			send(new Packet(ID, Packet.Type.CONNECT, IDs), address, port);
 		} else if (type == Packet.Type.MESSAGE)
 		{
+			packet.message = getName(packet.ID) + ": " + packet.message;
 			sendToAll(packet);
 		} else if (type == Packet.Type.DISCONNECT)
 		{
@@ -309,6 +346,58 @@ public class Server implements Runnable
 		{
 			console(packet.message);
 		}
+	}
+
+	// TODO only aes works
+	protected SealedObject encrypt(final Packet p) throws NoSuchAlgorithmException, NoSuchPaddingException
+	{
+		SecretKeySpec message = new SecretKeySpec(encrypt_passwd.getBytes(), cipher_const);
+		Cipher c = Cipher.getInstance(cipher_const);
+		SealedObject encrypted_message = null;
+		try
+		{
+			c.init(Cipher.ENCRYPT_MODE, message);
+			encrypted_message = new SealedObject(p, c);
+		} catch (InvalidKeyException e)
+		{
+			e.printStackTrace();
+		} catch (IllegalBlockSizeException e)
+		{
+			e.printStackTrace();
+		} catch (IOException e)
+		{
+			e.printStackTrace();
+		}
+		return encrypted_message;
+	}
+
+	// TODO only aes works
+	protected Packet decrypt(final SealedObject p) throws NoSuchAlgorithmException, NoSuchPaddingException
+	{
+		SecretKeySpec message = new SecretKeySpec(encrypt_passwd.getBytes(), cipher_const);
+		Cipher c = Cipher.getInstance(cipher_const);
+		Packet decrypted_message = null;
+		try
+		{
+			c.init(Cipher.DECRYPT_MODE, message);
+			decrypted_message = (Packet) p.getObject(c);
+		} catch (InvalidKeyException e)
+		{
+			e.printStackTrace();
+		} catch (ClassNotFoundException e)
+		{
+			e.printStackTrace();
+		} catch (IllegalBlockSizeException e)
+		{
+			e.printStackTrace();
+		} catch (BadPaddingException e)
+		{
+			e.printStackTrace();
+		} catch (IOException e)
+		{
+			e.printStackTrace();
+		}
+		return decrypted_message;
 	}
 
 	private void quit()
@@ -323,6 +412,14 @@ public class Server implements Runnable
 		console("Server has shutdown.");
 		// close the socket
 		running = false; // if you do this you will terminate whole server
+		try
+		{
+			manage.join(2000);
+			receive.join(2000);
+		} catch (InterruptedException e)
+		{
+			e.printStackTrace();
+		}
 		socket.close();
 	}
 
@@ -354,6 +451,20 @@ public class Server implements Runnable
 			}
 		}
 		console(message);
+	}
+
+	public String getName(int id)
+	{
+		ServerClient c = null;
+		for (int i = 0; i < clients.size(); ++i)
+		{
+			if (clients.get(i).getID() == id)
+			{
+				c = clients.get(i);
+				break;
+			}
+		}
+		return c.name;
 	}
 
 	public void console(String msg)

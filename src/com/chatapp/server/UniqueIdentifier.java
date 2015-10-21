@@ -15,7 +15,8 @@ public class UniqueIdentifier
 	{
 		for (int i = 0; i < RANGE; i++)
 		{
-			ids.add(i);
+			ids.add(i + 1); // we must ensure that every of ids gets number but
+							// it must be !=0
 		}
 		Collections.shuffle(ids); // permutes ids
 	}
