@@ -24,27 +24,47 @@ import javax.crypto.spec.SecretKeySpec;
 
 import com.chatapp.networking.Packet;
 
+/**
+ * Chat Server class responsible for handling server side of chat
+ * 
+ * @author notechus
+ */
 public class Server implements Runnable
 {
+	/** List of clients connected to the Server */
 	private List<ServerClient> clients = new ArrayList<>();
+	/** List of client responses(usable in disconnection handling) */
 	private List<Integer> clientResponse = new ArrayList<>();
 
+	/** UDP socket used to send and receive data */
 	private DatagramSocket socket;
+	/** Socket's running port */
 	private int port;
+	/** Running flag */
 	private boolean running = false;
+	/** Server threads: running, managing, sending and receiving */
 	private Thread run, manage, send, receive;
-	private final int ID = 0; // for packets only i think
+	/** Server's ID should always be 0 */
+	private final int ID = 0;
 
+	/**
+	 * After <code>MAX_ATTEMPTS</code> lacks of responses user will be
+	 * disconnected
+	 */
 	private final int MAX_ATTEMPTS = 5;
+	/** Raw mode flag */
 	private boolean raw = false;
 
-	// type of currently used cipher
-	// private final String cipher_const =
-	// "RSA/ECB/OAEPWithSHA-256AndMGF1Padding";
+	/** Type of used cipher */
 	private final String cipher_const = "AES";
-	// password for encrypting packets
+	/** Password for encryption and decryption */
 	private final String encrypt_passwd = "Somerandompasswd"; // 16
 
+	/**
+	 * Constructs Server with given parameter and opens Socket
+	 * 
+	 * @param port_ Port to be run at
+	 */
 	public Server(int port_)
 	{
 		this.port = port_;
@@ -61,6 +81,10 @@ public class Server implements Runnable
 		run.start();
 	}
 
+	/**
+	 * Runs Server thread
+	 * 
+	 */
 	public void run()
 	{
 		running = true;
@@ -76,51 +100,69 @@ public class Server implements Runnable
 				// i think it shouldn't be allowed to write anything but
 				// comments
 				continue;
-			}
-			com = com.substring(1).trim();
-			if (com.equals("raw"))
-			{
-				// enable raw mode -> print every packet sent/received <- TODO
-				if (raw)
-				{
-					console("Raw mode off");
-				} else
-				{
-					console("Raw mode on");
-				}
-				raw = !raw;
-			} else if (com.equals("clients"))
-			{
-				printClients();
-			} else if (com.equals("address"))
-			{
-				System.out.println(socket.getLocalSocketAddress());
-			} else if (com.startsWith("kick"))
-			{
-				// kick Seba or kick 819212
-				kick(com.substring(5).trim());
-			} else if (com.equals("quit"))
-			{
-				quit();
-			} else if (com.equals("start"))
-			{
-				// TODO
-			} else if (com.equals("help"))
-			{
-				printHelp();
-			} else if (com.equals("history"))
-			{
-				// TODO
 			} else
 			{
-				// in case /blahblah
-				console("Unknown command.");
-				printHelp();
+				com = com.substring(1).trim();
+				executeCommand(com);
 			}
 		}
 		scanner.close();
 	}
 
+	/**
+	 * Executes entered command
+	 * 
+	 * @param com entered command
+	 */
+	private void executeCommand(String com)
+	{
+
+		if (com.equals("raw"))
+		{
+			// enable raw mode -> print every packet sent/received
+			if (raw)
+			{
+				console("Raw mode off");
+			} else
+			{
+				console("Raw mode on");
+			}
+			raw = !raw;
+		} else if (com.equals("clients"))
+		{
+			printClients();
+		} else if (com.equals("address"))
+		{
+			System.out.println(socket.getLocalSocketAddress());
+		} else if (com.startsWith("kick"))
+		{
+			// kick Seba or kick 819212
+			kick(com.substring(5).trim());
+		} else if (com.equals("quit"))
+		{
+			quit();
+		} else if (com.equals("start"))
+		{
+			// TODO
+		} else if (com.equals("help"))
+		{
+			printHelp();
+		} else if (com.equals("history"))
+		{
+			// TODO
+		} else
+		{
+			// in case /blahblah
+			console("Unknown command.");
+			printHelp();
+		}
+	}
+
+	/**
+	 * Kicks client
+	 * 
+	 * @param name Client's name
+	 */
 	private void kick(String name)
 	{
 
@@ -166,6 +208,10 @@ public class Server implements Runnable
 		}
 	}
 
+	/**
+	 * Prints all connected clients
+	 * 
+	 */
 	private void printClients()
 	{
 		console("Clients:");
@@ -178,6 +224,10 @@ public class Server implements Runnable
 		console("===================================");
 	}
 
+	/**
+	 * Prints all available commands
+	 * 
+	 */
 	private void printHelp()
 	{
 		console("Here is a list of available commands:");
@@ -190,6 +240,9 @@ public class Server implements Runnable
 		console("/quit - shuts down the server.");
 	}
 
+	/**
+	 * Manages connected clients
+	 */
 	private void manageClients()
 	{
 		manage = new Thread("Manage")
@@ -232,6 +285,10 @@ public class Server implements Runnable
 		manage.start();
 	}
 
+	/**
+	 * Receives packets from clients and handles them
+	 * 
+	 */
 	private void receive()
 	{
 		receive = new Thread("Receive")
@@ -273,10 +330,16 @@ public class Server implements Runnable
 						console(p.toString()); // prints messages to syso
 				}
 			}
+
 		};
 		receive.start();
 	}
 
+	/**
+	 * Sends packet to all clients
+	 * 
+	 * @param packet <code>Packet</code> to be sent
+	 */
 	private void sendToAll(Packet packet)
 	{
 		for (int i = 0; i < clients.size(); i++)
@@ -287,6 +350,13 @@ public class Server implements Runnable
 		}
 	}
 
+	/**
+	 * Sends packet
+	 * 
+	 * @param p <code>Packet</code> to be sent
+	 * @param address destination address
+	 * @param port destination port
+	 */
 	private void send(Packet p, InetAddress address, int port)
 	{
 		send = new Thread("Send")
@@ -320,6 +390,13 @@ public class Server implements Runnable
 		send.start();
 	}
 
+	/**
+	 * Processes all incoming packets
+	 * 
+	 * @param packet <code>Packet</code> to be processed
+	 * @param address destination address, only usable when responding
+	 * @param port destination port, as above
+	 */
 	private void process(Packet packet, InetAddress address, int port)
 	{
 		Packet.Type type = packet.type;
@@ -348,7 +425,14 @@ public class Server implements Runnable
 		}
 	}
 
-	// TODO only aes works
+	/**
+	 * Encrypts packet using cipher specified in <code> cipher_const</code>
+	 * 
+	 * @param p Packet to be encrypted
+	 * @return Encrypted packet as <code>SealedObject</code>
+	 * @throws NoSuchAlgorithmException
+	 * @throws NoSuchPaddingException
+	 */
 	protected SealedObject encrypt(final Packet p) throws NoSuchAlgorithmException, NoSuchPaddingException
 	{
 		SecretKeySpec message = new SecretKeySpec(encrypt_passwd.getBytes(), cipher_const);
@@ -371,7 +455,14 @@ public class Server implements Runnable
 		return encrypted_message;
 	}
 
-	// TODO only aes works
+	/**
+	 * Deciphers packet using cipher specified in <code> cipher_const</code>
+	 * 
+	 * @param p <code>SealedObject</code> to be deciphered
+	 * @return deciphered <code>Packet</code>
+	 * @throws NoSuchAlgorithmException
+	 * @throws NoSuchPaddingException
+	 */
 	protected Packet decrypt(final SealedObject p) throws NoSuchAlgorithmException, NoSuchPaddingException
 	{
 		SecretKeySpec message = new SecretKeySpec(encrypt_passwd.getBytes(), cipher_const);
@@ -400,6 +491,9 @@ public class Server implements Runnable
 		return decrypted_message;
 	}
 
+	/**
+	 * Disconnects all clients and shutdowns the server
+	 */
 	private void quit()
 	{
 		// dc each client
@@ -423,6 +517,12 @@ public class Server implements Runnable
 		socket.close();
 	}
 
+	/**
+	 * Disconnects client
+	 * 
+	 * @param id Client's id
+	 * @param status disconnection status (time-out or user disconnection)
+	 */
 	private void disconnect(int id, boolean status)
 	{
 		ServerClient c = null;
@@ -453,6 +553,12 @@ public class Server implements Runnable
 		console(message);
 	}
 
+	/**
+	 * Return name of given client
+	 * 
+	 * @param id Client's ID
+	 * @return Client's name
+	 */
 	public String getName(int id)
 	{
 		ServerClient c = null;
@@ -467,6 +573,10 @@ public class Server implements Runnable
 		return c.name;
 	}
 
+	/**
+	 * Closes sockets and application
+	 * 
+	 */
 	public void console(String msg)
 	{
 		System.out.println(msg);
