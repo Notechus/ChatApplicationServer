@@ -4,9 +4,17 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Produces UID for connected clients
+ * 
+ * @author notechus
+ *
+ */
 public class UniqueIdentifier
 {
+	/** list of id */
 	private static List<Integer> ids = new ArrayList<>();
+	/** 10000 integers */
 	private static final int RANGE = 10000;
 
 	private static int index = 0;
@@ -21,11 +29,19 @@ public class UniqueIdentifier
 		Collections.shuffle(ids); // permutes ids
 	}
 
+	/**
+	 * Default constructor, does nothing
+	 */
 	private UniqueIdentifier()
 	{
 
 	}
 
+	/**
+	 * Assigns identifier
+	 * 
+	 * @return ID given from server
+	 */
 	public static int getIdentifier()
 	{
 		if (index > ids.size() - 1)
