@@ -6,16 +6,21 @@ import java.util.logging.Logger;
 import java.util.logging.SimpleFormatter;
 
 /**
- * Logging system
+ * Logging system. Singleton
  * 
  * @author notechus
  */
 public class DBLogger
 {
 
+	/** Logger */
 	private static final Logger logger = Logger.getLogger("chatapp.database");
+	/** File handler */
 	private FileHandler fh;
 
+	/**
+	 * Default constructor, will configure logger
+	 */
 	private DBLogger()
 	{
 		try

@@ -10,7 +10,10 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
 import java.security.InvalidKeyException;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
@@ -22,6 +25,7 @@ import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SealedObject;
 import javax.crypto.spec.SecretKeySpec;
 
+import com.chatapp.database.DBConnect;
 import com.chatapp.networking.Packet;
 
 /**
@@ -42,10 +46,12 @@ public class Server implements Runnable
 	private int port;
 	/** Running flag */
 	private boolean running = false;
-	/** Server threads: running, managing, sending and receiving */
-	private Thread run, manage, send, receive;
+	/** Server threads: running, database, managing, sending and receiving */
+	private Thread run, database, manage, send, receive;
 	/** Server's ID should always be 0 */
 	private final int ID = 0;
+	/** Database connection */
+	private DBConnect dbc;
 
 	/**
 	 * After <code>MAX_ATTEMPTS</code> lacks of responses user will be
@@ -55,6 +61,10 @@ public class Server implements Runnable
 	/** Raw mode flag */
 	private boolean raw = false;
 
+	/** Cipher object used to enc/dec */
+	private Cipher cipher;
+	/** KeyPair for enc/dec */
+	private KeyPair key;
 	/** Type of used cipher */
 	private final String cipher_const = "AES";
 	/** Password for encryption and decryption */
@@ -75,6 +85,30 @@ public class Server implements Runnable
 		{
 			ex.printStackTrace();
 			return;
+		}
+		dbc = new DBConnect();
+		try
+		{
+			dbc.connect("jdbc:mysql://localhost:3306/ChatDatabase", "notechu", "notechus");
+			console("Connected to database");
+		} catch (SQLException e)
+		{
+			e.printStackTrace();
+		}
+		// RSA
+		KeyPairGenerator keyGen;
+		try
+		{
+			keyGen = KeyPairGenerator.getInstance("RSA");
+			keyGen.initialize(2048);
+			key = keyGen.generateKeyPair();
+			cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
+		} catch (NoSuchAlgorithmException e)
+		{
+			e.printStackTrace();
+		} catch (NoSuchPaddingException e)
+		{
+			e.printStackTrace();
 		}
 
 		run = new Thread(this, "Server");
@@ -107,6 +141,22 @@ public class Server implements Runnable
 			}
 		}
 		scanner.close();
+	}
+
+	/**
+	 * Executes database query
+	 * 
+	 */
+	private void executeQuery()
+	{
+		database = new Thread("Database")
+		{
+			public void run()
+			{
+				System.out.println("db");
+			}
+		};
+		database.start();
 	}
 
 	/**
@@ -150,6 +200,10 @@ public class Server implements Runnable
 		} else if (com.equals("history"))
 		{
 			// TODO
+		} else if (com.startsWith("send"))
+		{
+
+			sendToAll(new Packet(ID, Packet.Type.MESSAGE, "Server Message: " + com.substring(5).trim()));
 		} else
 		{
 			// in case /blahblah
@@ -237,6 +291,7 @@ public class Server implements Runnable
 		console("/clients - shows all connected clients.");
 		console("/kick [users ID or username] - kicks a user.");
 		console("/help - shows this help message.");
+		console("/send [message] - sends message to all clients.");
 		console("/quit - shuts down the server.");
 	}
 
@@ -299,16 +354,19 @@ public class Server implements Runnable
 				{
 					// Receiving data
 					byte[] data = new byte[65536];
+					// byte[] decrypted_packet = null;
 					DatagramPacket packet = new DatagramPacket(data, data.length);
 					Packet p = null;
 					SealedObject d_packet = null;
 					try
 					{
 						socket.receive(packet);
+						// decrypted_packet = decrypt2(data);
 						ByteArrayInputStream in = new ByteArrayInputStream(data);
 						ObjectInputStream is = new ObjectInputStream(in);
 						d_packet = (SealedObject) is.readObject();
 						p = decrypt(d_packet);
+						// p = (Packet) is.readObject();
 					} catch (SocketException ex)
 					{
 
@@ -363,7 +421,6 @@ public class Server implements Runnable
 		{
 			public void run()
 			{
-
 				try
 				{
 					SealedObject e_packet = encrypt(p);
@@ -371,6 +428,7 @@ public class Server implements Runnable
 					ObjectOutputStream os = new ObjectOutputStream(outputStream);
 					os.writeObject(e_packet);
 					byte[] data = outputStream.toByteArray();
+					// byte[] encrypted_packet = encrypt2(data);
 					DatagramPacket packet = new DatagramPacket(data, data.length, address, port);
 					socket.send(packet);
 					if (raw)
@@ -407,7 +465,7 @@ public class Server implements Runnable
 			clients.add(new ServerClient(packet.message, address, port, id));
 			console(packet.message + "(" + id + ") connected.");
 			String IDs = "" + id;
-			console(IDs);
+			// console(IDs);
 			send(new Packet(ID, Packet.Type.CONNECT, IDs), address, port);
 		} else if (type == Packet.Type.MESSAGE)
 		{
@@ -419,6 +477,24 @@ public class Server implements Runnable
 		} else if (type == Packet.Type.PING)
 		{
 			clientResponse.add(packet.ID);
+		} else if (type == Packet.Type.DIRECT_MESSAGE)
+		{
+			ServerClient c = null;
+			boolean exists = false;
+			for (int i = 0; i < clients.size(); ++i)
+			{
+				if (clients.get(i).getID() == packet.ID)
+				{
+					c = clients.get(i);
+					exists = true;
+					break;
+				}
+			}
+			if (exists)
+			{
+				send(new Packet(packet.ID, packet.type, c.name + ": " + packet.message), c.address, c.port);
+			}
+
 		} else
 		{
 			console(packet.message);
@@ -441,7 +517,9 @@ public class Server implements Runnable
 		try
 		{
 			c.init(Cipher.ENCRYPT_MODE, message);
+			// cipher.init(Cipher.ENCRYPT_MODE, key.getPublic());
 			encrypted_message = new SealedObject(p, c);
+			// encrypted_message = new SealedObject(p, cipher);
 		} catch (InvalidKeyException e)
 		{
 			e.printStackTrace();
@@ -449,6 +527,31 @@ public class Server implements Runnable
 		{
 			e.printStackTrace();
 		} catch (IOException e)
+		{
+			e.printStackTrace();
+		}
+		return encrypted_message;
+	}
+
+	protected byte[] encrypt2(final byte[] p) throws NoSuchAlgorithmException, NoSuchPaddingException
+	{
+		// SecretKeySpec message = new SecretKeySpec(encrypt_passwd.getBytes(),
+		// cipher_const);
+		// Cipher c = Cipher.getInstance(cipher_const);
+		byte[] encrypted_message = null;
+		try
+		{
+			// c.init(Cipher.ENCRYPT_MODE, message);
+			cipher.init(Cipher.ENCRYPT_MODE, key.getPublic());
+			// encrypted_message = new SealedObject(p, c);
+			encrypted_message = cipher.doFinal(p);
+		} catch (InvalidKeyException e)
+		{
+			e.printStackTrace();
+		} catch (IllegalBlockSizeException e)
+		{
+			e.printStackTrace();
+		} catch (BadPaddingException e)
 		{
 			e.printStackTrace();
 		}
@@ -471,6 +574,7 @@ public class Server implements Runnable
 		try
 		{
 			c.init(Cipher.DECRYPT_MODE, message);
+			// cipher.init(Cipher.DECRYPT_MODE, key.getPrivate());
 			decrypted_message = (Packet) p.getObject(c);
 		} catch (InvalidKeyException e)
 		{
@@ -485,6 +589,30 @@ public class Server implements Runnable
 		{
 			e.printStackTrace();
 		} catch (IOException e)
+		{
+			e.printStackTrace();
+		}
+		return decrypted_message;
+	}
+
+	protected byte[] decrypt2(final byte[] p) throws NoSuchAlgorithmException, NoSuchPaddingException
+	{
+		// SecretKeySpec message = new SecretKeySpec(encrypt_passwd.getBytes(),
+		// cipher_const);
+		// Cipher c = Cipher.getInstance(cipher_const);
+		byte[] decrypted_message = null;
+		try
+		{
+			// c.init(Cipher.DECRYPT_MODE, message);
+			cipher.init(Cipher.DECRYPT_MODE, key.getPrivate());
+			decrypted_message = cipher.doFinal(p);
+		} catch (InvalidKeyException e)
+		{
+			e.printStackTrace();
+		} catch (IllegalBlockSizeException e)
+		{
+			e.printStackTrace();
+		} catch (BadPaddingException e)
 		{
 			e.printStackTrace();
 		}

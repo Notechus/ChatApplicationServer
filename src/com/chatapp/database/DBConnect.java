@@ -1,5 +1,6 @@
 package com.chatapp.database;
 
+import com.chatapp.server.ServerClient;
 import com.sun.rowset.JdbcRowSetImpl;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -16,13 +17,17 @@ import javax.sql.rowset.JdbcRowSet;
  */
 public class DBConnect
 {
+	// TODO should identify user here, check id
 
+	/** connects to db */
 	private Connection con;
-	private final String host = "jdbc:mysql://localhost:3306/library";
-	private String uName = "root";
-	private String uPass = "root!@#";
+	/** database host */
+	private String host;
+	/** database username */
+	private String uName;
+	/** username password */
+	private char[] uPass;
 
-	// check RowSet- jdbcrowset is good for updating and reaching for data
 	/**
 	 * Connects to chosen database using given host, username and password.
 	 *
@@ -34,7 +39,11 @@ public class DBConnect
 	 */
 	public void connect(String host_, String uName_, String uPass_) throws SQLException
 	{
-		this.con = DriverManager.getConnection(host_, uName_, uPass_);
+		this.host = host_;
+		this.uName = uName_;
+		this.uPass = uPass_.toCharArray(); // we shouldn't really store password
+											// here
+		this.con = DriverManager.getConnection(host, uName, uPass_);
 	}
 
 	/**
@@ -45,21 +54,79 @@ public class DBConnect
 	 */
 	public void disconnect() throws SQLException, NullPointerException
 	{
+		for (int i = 0; i < uPass.length; i++)
+		{
+			uPass[i] = 0; // snooping prevention
+		}
 		con.close();
 	}
 
 	/**
-	 * Search for data in database.
+	 * Adds client to database
+	 * 
+	 * @param name client's name
+	 * @param l_name client's last name
+	 * @param ID client's ID
+	 * @throws SQLException
+	 */
+	public void addClient(String name, String l_name, int ID) throws SQLException
+	{
+		String order = "INSERT INTO Clients (FirstName,LastName,ID) VALUES(" + name + "," + l_name + "," + ID + ");";
+		Statement stmt = con.createStatement();
+		try
+		{
+			stmt.executeQuery(order);
+		} finally
+		{
+			if (stmt != null)
+			{
+				stmt.close();
+			}
+		}
+	}
+
+	/**
+	 * Deletes client from database
+	 * 
+	 * @param ID client's ID
+	 */
+	public void deleteClient(int ID) throws SQLException
+	{
+		String order = "DELETE FROM Clients WHERE ID=" + ID + ");";
+		Statement stmt = con.createStatement();
+		try
+		{
+			stmt.executeQuery(order);
+		} finally
+		{
+			if (stmt != null)
+			{
+				stmt.close();
+			}
+		}
+	}
+
+	/**
+	 * Updates client info in database
+	 * 
+	 */
+	public void updateClient()
+	{
+		// TODO
+	}
+
+	/**
+	 * Search for specific client in database.
 	 *
 	 * @param order <code>String</code> query which will be passed to
 	 *            <code>Statement</code> and executed there
-	 * @param type type of item looked for(@Book, @DVD, @Person, @Firm)
 	 * @return <tt> ArrayList</tt> containing found data
 	 * @throws SQLException if a database access error occurs or this method is
 	 *             called on a closed connection
 	 */
-	public ArrayList<String> search(String order, String type) throws SQLException
+	public ArrayList<String> displayClient(int ID) throws SQLException
 	{
+		String order = "SELECT * FROM Clients WHERE ID ='" + ID + "';";
 		ArrayList<String> array = new ArrayList<>();
 		Statement stmt = null;
 		try
@@ -69,14 +136,7 @@ public class DBConnect
 
 			while (rs.next())
 			{
-				if (null != type)
-				{
-					switch (type)
-					{
-					case "Person":
-						array.add(rs.getString(1) + " " + rs.getString(2) + " " + rs.getString(3) + " " + rs.getString(4) + "\n");
-					}
-				}
+				array.add(rs.getInt(1) + " " + rs.getString(2) + " " + rs.getString(3) + " " + rs.getInt(4));
 			}
 			return array;
 		} finally
@@ -89,31 +149,25 @@ public class DBConnect
 	}
 
 	/**
-	 * Search for all contained data in database.
+	 * Displays all clients in database.
 	 *
-	 * @param type type of items looked for(@Book, @DVD, @Person, @Firm)
-	 * @return <code> ResultSet</code> containing all found data of given @param
+	 * @return <code>ArrayList</code> containing all found clients
 	 * @throws SQLException if a database access error occurs or this method is
 	 *             called on a closed connection
 	 */
-	public ArrayList<String> searchAll(String type) throws SQLException
+	public ArrayList<ServerClient> displayAll() throws SQLException
 	{
-		String SQL_P = "SELECT * FROM Person";
+		String SQL_P = "SELECT * FROM Clients";
 		ResultSet rs;
 
-		ArrayList<String> array = new ArrayList<>();
+		ArrayList<ServerClient> array = new ArrayList<>();
 		Statement stmt = con.createStatement();
 		try
 		{
-			switch (type)
+			rs = stmt.executeQuery(SQL_P);
+			while (rs.next())
 			{
-			case "Person":
-				rs = stmt.executeQuery(SQL_P);
-				while (rs.next())
-				{
-					array.add(rs.getString(1) + " " + rs.getString(2) + " " + rs.getString(3) + " " + rs.getString(4));
-				}
-				break;
+
 			}
 			return array;
 		} finally
@@ -150,27 +204,30 @@ public class DBConnect
 		}
 	}
 
-	public void insert(String type, String command, ArrayList<?> array) throws SQLException
+	/**
+	 * Insert type of query
+	 * 
+	 * @param command
+	 * @param array
+	 * @throws SQLException
+	 */
+	public void insert(String command, ArrayList<?> array) throws SQLException
 	{
 
 		JdbcRowSet jdbcRs = new JdbcRowSetImpl(con);
 		jdbcRs.setCommand(command);
 		jdbcRs.execute();
 
-		switch (type)
-		{
-		case "Person":
-			jdbcRs.moveToInsertRow();
-			jdbcRs.updateString("FirstName", (String) array.get(0));
-			jdbcRs.updateString("LastName", (String) array.get(1));
-			jdbcRs.updateString("Email", (String) array.get(2));
-			jdbcRs.insertRow();
-			break;
-		}
+		jdbcRs.moveToInsertRow();
+		jdbcRs.updateString("FirstName", (String) array.get(0));
+		jdbcRs.updateString("LastName", (String) array.get(1));
+		jdbcRs.updateString("Email", (String) array.get(2));
+		jdbcRs.insertRow();
+		jdbcRs.close();
 	}
 
 	/**
-	 * Returns result of given SQL query.
+	 * Returns <code>ResultSet</code> of given SQL query.
 	 *
 	 * @param order <code>String</code> query which will be passed to
 	 *            <code>Statement</code> and executed there
