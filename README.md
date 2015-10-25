@@ -14,3 +14,7 @@ This is server for my ChatApplication(moved it from ChatApp project here)
    * add new uid system,
    * unique id for user stored in db -> will provide friends and will help with login stuff. 
      Finally we might want to replace all chat with sth else like news feed.
+
+Last changes:<br>
+  Added some sort of encryption for packets so they cannot be sniffed.<br>
+  Added javadoc comment.<br>
