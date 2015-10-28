@@ -467,6 +467,10 @@ public class Server implements Runnable
 			String IDs = "" + id;
 			// console(IDs);
 			send(new Packet(ID, Packet.Type.CONNECT, IDs), address, port);
+			for (int i = 0; i < clients.size(); i++)
+			{
+				send(new Packet(ID, Packet.Type.USER_ONLINE, clients.get(i).getID() + "." + clients.get(i).name), address, port);
+			}
 		} else if (type == Packet.Type.MESSAGE)
 		{
 			packet.message = getName(packet.ID) + ": " + packet.message;
@@ -474,6 +478,7 @@ public class Server implements Runnable
 		} else if (type == Packet.Type.DISCONNECT)
 		{
 			disconnect(packet.ID, true);
+			sendToAll(new Packet(ID, Packet.Type.USER_OFFLINE, packet.ID + ""));
 		} else if (type == Packet.Type.PING)
 		{
 			clientResponse.add(packet.ID);

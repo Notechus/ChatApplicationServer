@@ -66,7 +66,7 @@ public class Packet implements Serializable
 	 */
 	public enum Type
 	{
-		CONNECT, DISCONNECT, MESSAGE, DIRECT_MESSAGE, PING, ACK
+		CONNECT, DISCONNECT, MESSAGE, DIRECT_MESSAGE, PING, ACK, USER_ONLINE, USER_OFFLINE
 		// ACK - acknowledgement from server, will be used later
 	}
 }
