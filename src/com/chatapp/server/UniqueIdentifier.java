@@ -18,6 +18,7 @@ public class UniqueIdentifier
 	private static final int RANGE = 10000;
 
 	private static int index = 0;
+	// UUID id = UUID.randomUUID();
 
 	static
 	{

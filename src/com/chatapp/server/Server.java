@@ -23,9 +23,9 @@ import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SealedObject;
-import javax.crypto.spec.SecretKeySpec;
 
 import com.chatapp.database.DBConnect;
+import com.chatapp.networking.CipherSystem;
 import com.chatapp.networking.Packet;
 
 /**
@@ -61,15 +61,6 @@ public class Server implements Runnable
 	/** Raw mode flag */
 	private boolean raw = false;
 
-	/** Cipher object used to enc/dec */
-	private Cipher cipher;
-	/** KeyPair for enc/dec */
-	private KeyPair key;
-	/** Type of used cipher */
-	private final String cipher_const = "AES";
-	/** Password for encryption and decryption */
-	private final String encrypt_passwd = "Somerandompasswd"; // 16
-
 	/**
 	 * Constructs Server with given parameter and opens Socket
 	 * 
@@ -92,21 +83,6 @@ public class Server implements Runnable
 			dbc.connect("jdbc:mysql://localhost:3306/ChatDatabase", "notechu", "notechus");
 			console("Connected to database");
 		} catch (SQLException e)
-		{
-			e.printStackTrace();
-		}
-		// RSA
-		KeyPairGenerator keyGen;
-		try
-		{
-			keyGen = KeyPairGenerator.getInstance("RSA");
-			keyGen.initialize(2048);
-			key = keyGen.generateKeyPair();
-			cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
-		} catch (NoSuchAlgorithmException e)
-		{
-			e.printStackTrace();
-		} catch (NoSuchPaddingException e)
 		{
 			e.printStackTrace();
 		}
@@ -186,7 +162,7 @@ public class Server implements Runnable
 			System.out.println(socket.getLocalSocketAddress());
 		} else if (com.startsWith("kick"))
 		{
-			// kick Seba or kick 819212
+			// kick [username] or kick [id]
 			kick(com.substring(5).trim());
 		} else if (com.equals("quit"))
 		{
@@ -365,7 +341,7 @@ public class Server implements Runnable
 						ByteArrayInputStream in = new ByteArrayInputStream(data);
 						ObjectInputStream is = new ObjectInputStream(in);
 						d_packet = (SealedObject) is.readObject();
-						p = decrypt(d_packet);
+						p = CipherSystem.decrypt(d_packet);
 						// p = (Packet) is.readObject();
 					} catch (SocketException ex)
 					{
@@ -423,7 +399,7 @@ public class Server implements Runnable
 			{
 				try
 				{
-					SealedObject e_packet = encrypt(p);
+					SealedObject e_packet = CipherSystem.encrypt(p);
 					ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 					ObjectOutputStream os = new ObjectOutputStream(outputStream);
 					os.writeObject(e_packet);
@@ -458,14 +434,16 @@ public class Server implements Runnable
 	private void process(Packet packet, InetAddress address, int port)
 	{
 		Packet.Type type = packet.type;
-		if (type == Packet.Type.CONNECT)
+		if (type == Packet.Type.LOGIN)
 		{
-			// UUID id = UUID.randomUUID();
+			String temp[] = packet.message.split("|");
+			// do sth with this
+		} else if (type == Packet.Type.CONNECT)
+		{
 			int id = UniqueIdentifier.getIdentifier();
 			clients.add(new ServerClient(packet.message, address, port, id));
 			console(packet.message + "(" + id + ") connected.");
 			String IDs = "" + id;
-			// console(IDs);
 			send(new Packet(ID, Packet.Type.CONNECT, IDs), address, port);
 			for (int i = 0; i < clients.size(); i++)
 			{
@@ -507,124 +485,6 @@ public class Server implements Runnable
 	}
 
 	/**
-	 * Encrypts packet using cipher specified in <code> cipher_const</code>
-	 * 
-	 * @param p Packet to be encrypted
-	 * @return Encrypted packet as <code>SealedObject</code>
-	 * @throws NoSuchAlgorithmException
-	 * @throws NoSuchPaddingException
-	 */
-	protected SealedObject encrypt(final Packet p) throws NoSuchAlgorithmException, NoSuchPaddingException
-	{
-		SecretKeySpec message = new SecretKeySpec(encrypt_passwd.getBytes(), cipher_const);
-		Cipher c = Cipher.getInstance(cipher_const);
-		SealedObject encrypted_message = null;
-		try
-		{
-			c.init(Cipher.ENCRYPT_MODE, message);
-			// cipher.init(Cipher.ENCRYPT_MODE, key.getPublic());
-			encrypted_message = new SealedObject(p, c);
-			// encrypted_message = new SealedObject(p, cipher);
-		} catch (InvalidKeyException e)
-		{
-			e.printStackTrace();
-		} catch (IllegalBlockSizeException e)
-		{
-			e.printStackTrace();
-		} catch (IOException e)
-		{
-			e.printStackTrace();
-		}
-		return encrypted_message;
-	}
-
-	protected byte[] encrypt2(final byte[] p) throws NoSuchAlgorithmException, NoSuchPaddingException
-	{
-		// SecretKeySpec message = new SecretKeySpec(encrypt_passwd.getBytes(),
-		// cipher_const);
-		// Cipher c = Cipher.getInstance(cipher_const);
-		byte[] encrypted_message = null;
-		try
-		{
-			// c.init(Cipher.ENCRYPT_MODE, message);
-			cipher.init(Cipher.ENCRYPT_MODE, key.getPublic());
-			// encrypted_message = new SealedObject(p, c);
-			encrypted_message = cipher.doFinal(p);
-		} catch (InvalidKeyException e)
-		{
-			e.printStackTrace();
-		} catch (IllegalBlockSizeException e)
-		{
-			e.printStackTrace();
-		} catch (BadPaddingException e)
-		{
-			e.printStackTrace();
-		}
-		return encrypted_message;
-	}
-
-	/**
-	 * Deciphers packet using cipher specified in <code> cipher_const</code>
-	 * 
-	 * @param p <code>SealedObject</code> to be deciphered
-	 * @return deciphered <code>Packet</code>
-	 * @throws NoSuchAlgorithmException
-	 * @throws NoSuchPaddingException
-	 */
-	protected Packet decrypt(final SealedObject p) throws NoSuchAlgorithmException, NoSuchPaddingException
-	{
-		SecretKeySpec message = new SecretKeySpec(encrypt_passwd.getBytes(), cipher_const);
-		Cipher c = Cipher.getInstance(cipher_const);
-		Packet decrypted_message = null;
-		try
-		{
-			c.init(Cipher.DECRYPT_MODE, message);
-			// cipher.init(Cipher.DECRYPT_MODE, key.getPrivate());
-			decrypted_message = (Packet) p.getObject(c);
-		} catch (InvalidKeyException e)
-		{
-			e.printStackTrace();
-		} catch (ClassNotFoundException e)
-		{
-			e.printStackTrace();
-		} catch (IllegalBlockSizeException e)
-		{
-			e.printStackTrace();
-		} catch (BadPaddingException e)
-		{
-			e.printStackTrace();
-		} catch (IOException e)
-		{
-			e.printStackTrace();
-		}
-		return decrypted_message;
-	}
-
-	protected byte[] decrypt2(final byte[] p) throws NoSuchAlgorithmException, NoSuchPaddingException
-	{
-		// SecretKeySpec message = new SecretKeySpec(encrypt_passwd.getBytes(),
-		// cipher_const);
-		// Cipher c = Cipher.getInstance(cipher_const);
-		byte[] decrypted_message = null;
-		try
-		{
-			// c.init(Cipher.DECRYPT_MODE, message);
-			cipher.init(Cipher.DECRYPT_MODE, key.getPrivate());
-			decrypted_message = cipher.doFinal(p);
-		} catch (InvalidKeyException e)
-		{
-			e.printStackTrace();
-		} catch (IllegalBlockSizeException e)
-		{
-			e.printStackTrace();
-		} catch (BadPaddingException e)
-		{
-			e.printStackTrace();
-		}
-		return decrypted_message;
-	}
-
-	/**
 	 * Disconnects all clients and shutdowns the server
 	 */
 	private void quit()
@@ -641,9 +501,16 @@ public class Server implements Runnable
 		running = false; // if you do this you will terminate whole server
 		try
 		{
+			dbc.disconnect();
 			manage.join(2000);
 			receive.join(2000);
 		} catch (InterruptedException e)
+		{
+			e.printStackTrace();
+		} catch (NullPointerException e)
+		{
+			e.printStackTrace();
+		} catch (SQLException e)
 		{
 			e.printStackTrace();
 		}
