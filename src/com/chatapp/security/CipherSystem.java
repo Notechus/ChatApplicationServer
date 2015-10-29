@@ -1,4 +1,4 @@
-package com.chatapp.networking;
+package com.chatapp.security;
 
 import java.io.IOException;
 import java.security.InvalidKeyException;
@@ -12,6 +12,8 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SealedObject;
 import javax.crypto.spec.SecretKeySpec;
+
+import com.chatapp.networking.Packet;
 
 public class CipherSystem
 {
