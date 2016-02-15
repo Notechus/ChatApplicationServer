@@ -48,8 +48,7 @@ public class Server implements Runnable
 	private DBConnect dbc;
 
 	/**
-	 * After <code>MAX_ATTEMPTS</code> lacks of responses user will be
-	 * disconnected
+	 * After <code>MAX_ATTEMPTS</code> lacks of responses user will be disconnected
 	 */
 	private final int MAX_ATTEMPTS = 5;
 	/** Raw mode flag */
@@ -58,7 +57,8 @@ public class Server implements Runnable
 	/**
 	 * Constructs Server with given parameter and opens Socket
 	 * 
-	 * @param port_ Port to be run at
+	 * @param port_
+	 *            Port to be run at
 	 */
 	public Server(int port_)
 	{
@@ -132,7 +132,8 @@ public class Server implements Runnable
 	/**
 	 * Executes entered command
 	 * 
-	 * @param com entered command
+	 * @param com
+	 *            entered command
 	 */
 	private void executeCommand(String com)
 	{
@@ -173,7 +174,8 @@ public class Server implements Runnable
 		} else if (com.startsWith("send"))
 		{
 
-			sendToAll(new Packet(ID, Packet.Type.MESSAGE, "Server Message: " + com.substring(5).trim()));
+			sendToAll(new Packet(ID, Packet.Type.MESSAGE, "Server Message: "
+					+ com.substring(5).trim()));
 		} else
 		{
 			// in case /blahblah
@@ -185,7 +187,8 @@ public class Server implements Runnable
 	/**
 	 * Kicks client
 	 * 
-	 * @param name Client's name
+	 * @param name
+	 *            Client's name
 	 */
 	private void kick(String name)
 	{
@@ -218,7 +221,8 @@ public class Server implements Runnable
 			{
 				console("Client " + id + " doesn't exist");
 			}
-		} else // if not number then username
+		} else
+		// if not number then username
 		{
 			for (int i = 0; i < clients.size(); i++)
 			{
@@ -354,8 +358,7 @@ public class Server implements Runnable
 						e.printStackTrace();
 					}
 					process(p, packet.getAddress(), packet.getPort());
-					if (raw)
-						console(p.toString()); // prints messages to syso
+					if (raw) console(p.toString()); // prints messages to syso
 				}
 			}
 
@@ -366,7 +369,8 @@ public class Server implements Runnable
 	/**
 	 * Sends packet to all clients
 	 * 
-	 * @param packet <code>Packet</code> to be sent
+	 * @param packet
+	 *            <code>Packet</code> to be sent
 	 */
 	private void sendToAll(Packet packet)
 	{
@@ -381,9 +385,12 @@ public class Server implements Runnable
 	/**
 	 * Sends packet
 	 * 
-	 * @param p <code>Packet</code> to be sent
-	 * @param address destination address
-	 * @param port destination port
+	 * @param p
+	 *            <code>Packet</code> to be sent
+	 * @param address
+	 *            destination address
+	 * @param port
+	 *            destination port
 	 */
 	private void send(Packet p, InetAddress address, int port)
 	{
@@ -401,8 +408,7 @@ public class Server implements Runnable
 					// byte[] encrypted_packet = encrypt2(data);
 					DatagramPacket packet = new DatagramPacket(data, data.length, address, port);
 					socket.send(packet);
-					if (raw)
-						console(p.toString());
+					if (raw) console(p.toString());
 				} catch (IOException ex)
 				{
 					ex.printStackTrace();
@@ -421,9 +427,12 @@ public class Server implements Runnable
 	/**
 	 * Processes all incoming packets
 	 * 
-	 * @param packet <code>Packet</code> to be processed
-	 * @param address destination address, only usable when responding
-	 * @param port destination port, as above
+	 * @param packet
+	 *            <code>Packet</code> to be processed
+	 * @param address
+	 *            destination address, only usable when responding
+	 * @param port
+	 *            destination port, as above
 	 */
 	private void process(Packet packet, InetAddress address, int port)
 	{
@@ -441,7 +450,8 @@ public class Server implements Runnable
 			send(new Packet(ID, Packet.Type.CONNECT, IDs), address, port);
 			for (int i = 0; i < clients.size(); i++)
 			{
-				send(new Packet(ID, Packet.Type.USER_ONLINE, clients.get(i).getID() + "." + clients.get(i).name), address, port);
+				send(new Packet(ID, Packet.Type.USER_ONLINE, clients.get(i).getID() + "."
+						+ clients.get(i).name), address, port);
 			}
 		} else if (type == Packet.Type.MESSAGE)
 		{
@@ -469,7 +479,8 @@ public class Server implements Runnable
 			}
 			if (exists)
 			{
-				send(new Packet(packet.ID, packet.type, c.name + ": " + packet.message), c.address, c.port);
+				send(new Packet(packet.ID, packet.type, c.name + ": " + packet.message), c.address,
+						c.port);
 			}
 
 		} else
@@ -514,8 +525,10 @@ public class Server implements Runnable
 	/**
 	 * Disconnects client
 	 * 
-	 * @param id Client's id
-	 * @param status disconnection status (time-out or user disconnection)
+	 * @param id
+	 *            Client's id
+	 * @param status
+	 *            disconnection status (time-out or user disconnection)
 	 */
 	private void disconnect(int id, boolean status)
 	{
@@ -550,7 +563,8 @@ public class Server implements Runnable
 	/**
 	 * Return name of given client
 	 * 
-	 * @param id Client's ID
+	 * @param id
+	 *            Client's ID
 	 * @return Client's name
 	 */
 	public String getName(int id)
